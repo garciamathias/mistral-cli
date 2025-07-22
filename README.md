@@ -87,6 +87,10 @@ npm run typecheck  # Type checking
 - Node.js 16 or higher
 - Mistral API key from https://mistral.ai
 
+## Acknowledgments
+
+Special thanks to [superagent.sh](https://superagent.sh) for the inspiration and codebase foundation.
+
 ## License
 
 MIT
