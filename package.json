@@ -1,0 +1,56 @@
+{
+  "name": "@vibe-kit/mistral-cli",
+  "version": "0.0.2",
+  "description": "An open-source AI agent powered by Mistral AI's Devstral Medium model for coding tasks directly in your terminal.",
+  "main": "dist/index.js",
+  "bin": {
+    "mistral": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "cli",
+    "agent",
+    "text-editor",
+    "mistral",
+    "devstral",
+    "ai"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cfonts": "^3.3.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.0",
+    "enquirer": "^2.4.1",
+    "fs-extra": "^11.1.1",
+    "ink": "^3.2.0",
+    "ink-gradient": "^2.0.0",
+    "ink-markdown": "^1.0.4",
+    "mistral-tokenizer-js": "^1.0.0",
+    "openai": "^5.10.1",
+    "react": "^17.0.2",
+    "tiktoken": "^1.0.21"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.2",
+    "@types/node": "^20.8.0",
+    "@types/react": "^17.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.37.0",
+    "@typescript-eslint/parser": "^8.37.0",
+    "eslint": "^9.31.0",
+    "tsx": "^4.0.0",
+    "typescript": "^4.9.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "preferGlobal": true
+}
