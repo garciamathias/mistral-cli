@@ -2,6 +2,8 @@
 
 A conversational AI terminal assistant powered by Mistral AI's Devstral models.
 
+![Mistral CLI Screenshot](./media/screenshot.png)
+
 ## Installation
 
 ```bash
