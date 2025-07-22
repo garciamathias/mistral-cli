@@ -1,28 +1,8 @@
 # Mistral CLI
 
-A powerful conversational AI assistant for your terminal, powered by Mistral AI's Devstral models.
+A conversational AI terminal assistant powered by Mistral AI's Devstral models.
 
-![Mistral CLI Screenshot](./media/screenshot.png)
-
-## What is Mistral CLI?
-
-Mistral CLI brings the power of AI directly to your terminal. Instead of typing commands, just tell it what you want to do in plain language. It understands your intent and executes the right tools automatically.
-
-### Key Features
-
-- 🤖 **Natural Language Interface** - Just describe what you want to do
-- 📝 **Smart File Management** - Create, edit, and manage files through conversation
-- ⚡ **Command Execution** - Run bash commands naturally
-- 🔍 **Web Search** - Search the internet without leaving your terminal
-- 💬 **Beautiful UI** - Clean, responsive terminal interface
-
-## Quick Start
-
-### Prerequisites
-- Node.js 16 or higher
-- Mistral API key from [Mistral AI](https://mistral.ai)
-
-### Installation
+## Installation
 
 ```bash
 git clone https://github.com/garciamathias/mistral-cli.git
@@ -32,57 +12,78 @@ npm run build
 npm link
 ```
 
-### Setup Your API Key
+## Configuration
 
+Set your Mistral API key using one of these methods:
+
+Environment variable:
 ```bash
-export MISTRAL_API_KEY=your_mistral_api_key_here
+export MISTRAL_API_KEY=your_api_key_here
 ```
 
 Or create a `.env` file:
-```bash
-MISTRAL_API_KEY=your_mistral_api_key_here
-LINKUP_API_KEY=your_linkup_api_key_here  # Optional, for web search
+```
+MISTRAL_API_KEY=your_api_key_here
+LINKUP_API_KEY=your_api_key_here  # Optional for web search
 ```
 
-### Start Using Mistral CLI
+## Usage
 
+Start the CLI:
 ```bash
 mistral
 ```
 
-## Example Usage
+Specify a working directory:
+```bash
+mistral -d /path/to/project
+```
 
-Just type what you want to do:
+## Examples
 
 ```
-💬 "Show me what's in the src folder"
-💬 "Create a new React component called Button"
-💬 "Find all TODO comments in the codebase"
-💬 "Run the tests"
-💬 "Search the web for the latest Node.js features"
+"Show me what's in the src folder"
+"Create a new file called config.js"
+"Find all TODO comments in the codebase"
+"Run npm test"
+"Search the web for Node.js best practices"
 ```
+
+## Features
+
+- Natural language interface for terminal operations
+- File creation, editing, and management
+- Command execution through conversation
+- Web search integration
+- Context-aware responses
+- Multi-model support (Devstral Medium, Small)
 
 ## Custom Instructions
 
-Create a `.mistral/MISTRAL.md` file in your project to customize Mistral's behavior:
+Create `.mistral/MISTRAL.md` in your project to customize behavior:
 
 ```markdown
-# Project-Specific Instructions
+# Project Instructions
 
-- Always use TypeScript
-- Follow our ESLint configuration
-- Write tests for new features
-- Use functional components for React
+- Use TypeScript for all files
+- Follow ESLint rules
+- Write unit tests
+- Use functional programming patterns
 ```
 
 ## Development
 
 ```bash
-npm run dev        # Run in development mode
-npm run build      # Build the project
+npm run dev        # Development mode
+npm run build      # Build project
 npm run lint       # Run linter
-npm run typecheck  # Check types
+npm run typecheck  # Type checking
 ```
+
+## Requirements
+
+- Node.js 16 or higher
+- Mistral API key from https://mistral.ai
 
 ## License
 
