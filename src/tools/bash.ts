@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { ToolResult } from '../types';
 import { ConfirmationService } from '../utils/confirmation-service';
+import { truncateOutput, formatTruncatedMessage } from '../ui/utils/output-truncator';
 
 const execAsync = promisify(exec);
 
@@ -9,7 +10,7 @@ export class BashTool {
   private currentDirectory: string = process.cwd();
   private confirmationService = ConfirmationService.getInstance();
 
-  async execute(command: string, timeout: number = 30000): Promise<ToolResult> {
+  async execute(command: string, timeout: number = 30000, maxOutputLines: number = 50): Promise<ToolResult> {
     try {
       // Check if user has already accepted bash commands for this session
       const sessionFlags = this.confirmationService.getSessionFlags();
@@ -54,10 +55,17 @@ export class BashTool {
       });
 
       const output = stdout + (stderr ? `\nSTDERR: ${stderr}` : '');
+      const trimmedOutput = output.trim() || 'Command executed successfully (no output)';
+      
+      // Apply output truncation to prevent context overflow
+      const truncated = truncateOutput(trimmedOutput, maxOutputLines);
+      const finalOutput = truncated.isTruncated 
+        ? `${truncated.displayText}\n${formatTruncatedMessage(truncated.displayedLines, truncated.totalLines)}`
+        : truncated.displayText;
       
       return {
         success: true,
-        output: output.trim() || 'Command executed successfully (no output)'
+        output: finalOutput
       };
     } catch (error: any) {
       return {
