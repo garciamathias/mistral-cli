@@ -172,24 +172,15 @@ Available models: ${modelNames.join(", ")}`,
         switch (chunk.type) {
           case "content":
             if (chunk.content) {
-              if (!streamingEntry) {
-                const newStreamingEntry = {
-                  type: "assistant" as const,
-                  content: chunk.content,
-                  timestamp: new Date(),
-                  isStreaming: true,
-                };
-                setChatHistory((prev) => [...prev, newStreamingEntry]);
-                streamingEntry = newStreamingEntry;
-              } else {
-                setChatHistory((prev) =>
-                  prev.map((entry, idx) =>
-                    idx === prev.length - 1 && entry.isStreaming
-                      ? { ...entry, content: entry.content + chunk.content }
-                      : entry
-                  )
-                );
-              }
+              // Display complete content at once instead of streaming
+              const newCompleteEntry = {
+                type: "assistant" as const,
+                content: chunk.content,
+                timestamp: new Date(),
+                isStreaming: false,
+              };
+              setChatHistory((prev) => [...prev, newCompleteEntry]);
+              streamingEntry = newCompleteEntry;
             }
             break;
 

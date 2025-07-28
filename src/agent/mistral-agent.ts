@@ -349,7 +349,7 @@ Current working directory: ${process.cwd()}`,
             }
           }
 
-          // Stream content as it comes
+          // Accumulate content without streaming individual tokens
           if (chunk.choices[0].delta?.content) {
             accumulatedContent += chunk.choices[0].delta.content;
 
@@ -358,17 +358,20 @@ Current working directory: ${process.cwd()}`,
               this.tokenCounter.estimateStreamingTokens(accumulatedContent);
             totalOutputTokens = currentOutputTokens;
 
-            yield {
-              type: "content",
-              content: chunk.choices[0].delta.content,
-            };
-
-            // Emit token count update
+            // Emit token count update only (no content streaming)
             yield {
               type: "token_count",
               tokenCount: inputTokens + totalOutputTokens,
             };
           }
+        }
+
+        // Yield complete content if there was any accumulated content
+        if (accumulatedContent && !toolCallsYielded) {
+          yield {
+            type: "content",
+            content: accumulatedContent,
+          };
         }
 
         // Add assistant entry to history

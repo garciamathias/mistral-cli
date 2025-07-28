@@ -84,7 +84,6 @@ export function ChatHistory({ entries }: ChatHistoryProps) {
                   // If no tool calls, render as markdown
                   <MarkdownRenderer content={entry.content.trim()} />
                 )}
-                {entry.isStreaming && <Text color="cyan">█</Text>}
               </Box>
             </Box>
           </Box>
