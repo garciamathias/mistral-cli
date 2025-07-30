@@ -37,6 +37,7 @@ function ChatInterfaceWithAgent({ agent }: { agent: MistralAgent }) {
     selectedModelIndex,
     commandSuggestions,
     availableModels,
+    currentMode,
   } = useInputHandler({
     agent,
     chatHistory,
@@ -150,6 +151,7 @@ function ChatInterfaceWithAgent({ agent }: { agent: MistralAgent }) {
             isStreaming={isStreaming}
             modelName={agent.getCurrentModel()}
             contextPercentageLeft={agent.getContextPercentageLeft()}
+            currentMode={currentMode}
           />
 
           <CommandSuggestions

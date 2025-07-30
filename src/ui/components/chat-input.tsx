@@ -1,12 +1,15 @@
 import React from "react";
 import { Box, Text } from "ink";
 
+type AppMode = 'auto-accept-off' | 'auto-accept-on' | 'plan';
+
 interface ChatInputProps {
   input: string;
   isProcessing: boolean;
   isStreaming: boolean;
   modelName?: string;
   contextPercentageLeft?: number;
+  currentMode: AppMode;
 }
 
 function getContextColor(percentage: number): string {
@@ -15,12 +18,39 @@ function getContextColor(percentage: number): string {
   return 'red';
 }
 
+function getModeText(mode: AppMode): string {
+  switch (mode) {
+    case 'auto-accept-off':
+      return '⏵⏵ auto-accept edits off (shift+tab to cycle)';
+    case 'auto-accept-on':
+      return '⏵⏵ auto-accept edits on (shift+tab to cycle)';
+    case 'plan':
+      return '⏸ plan mode on (shift+tab to cycle)';
+    default:
+      return '⏵⏵ auto-accept edits off (shift+tab to cycle)';
+  }
+}
+
+function getModeColor(mode: AppMode): 'green' | 'cyan' | 'yellow' {
+  switch (mode) {
+    case 'plan':
+      return 'green';        // Vert clair pour plan mode
+    case 'auto-accept-on':
+      return 'cyan';         // Cyan pour auto-accept on
+    case 'auto-accept-off':
+      return 'yellow';       // Orange clair (yellow) pour auto-accept off
+    default:
+      return 'yellow';
+  }
+}
+
 export function ChatInput({ 
   input, 
   isProcessing, 
   isStreaming,
   modelName,
-  contextPercentageLeft 
+  contextPercentageLeft,
+  currentMode
 }: ChatInputProps) {
   return (
     <Box flexDirection="column" marginTop={1}>
@@ -31,16 +61,19 @@ export function ChatInput({
           {!isProcessing && !isStreaming && <Text color="white">█</Text>}
         </Text>
       </Box>
-      {modelName && contextPercentageLeft !== undefined && (
-        <Box justifyContent="flex-end" paddingRight={2}>
+      <Box justifyContent="space-between" paddingX={2}>
+        <Text color={getModeColor(currentMode)}>
+          {getModeText(currentMode)}
+        </Text>
+        {modelName && contextPercentageLeft !== undefined && (
           <Text 
             color={getContextColor(contextPercentageLeft)} 
             dimColor
           >
             {modelName} ({contextPercentageLeft}% context left)
           </Text>
-        </Box>
-      )}
+        )}
+      </Box>
     </Box>
   );
 }

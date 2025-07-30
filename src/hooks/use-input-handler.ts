@@ -27,6 +27,8 @@ interface ModelOption {
   description: string;
 }
 
+type AppMode = 'auto-accept-off' | 'auto-accept-on' | 'plan';
+
 export function useInputHandler({
   agent,
   setChatHistory,
@@ -44,6 +46,7 @@ export function useInputHandler({
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [showModelSelection, setShowModelSelection] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
+  const [currentMode, setCurrentMode] = useState<AppMode>('auto-accept-off');
   const { exit } = useApp();
 
   const commandSuggestions: CommandSuggestion[] = [
@@ -57,6 +60,21 @@ export function useInputHandler({
     { model: "devstral-small-2505", description: "Devstral Small - Efficient coding model (128k context)" },
     { model: "devstral-medium-2507", description: "Devstral Medium - High-performance coding model (128k context)" },
   ];
+
+  const cycleModes = () => {
+    setCurrentMode((prevMode) => {
+      switch (prevMode) {
+        case 'auto-accept-off':
+          return 'auto-accept-on';
+        case 'auto-accept-on':
+          return 'plan';
+        case 'plan':
+          return 'auto-accept-off';
+        default:
+          return 'auto-accept-off';
+      }
+    });
+  };
 
   const handleDirectCommand = async (input: string): Promise<boolean> => {
     const trimmedInput = input.trim();
@@ -238,6 +256,12 @@ Available models: ${modelNames.join(", ")}`,
       return;
     }
 
+    // Handle Shift+Tab to cycle modes
+    if (key.shift && key.tab) {
+      cycleModes();
+      return;
+    }
+
     if (key.escape) {
       if (showCommandSuggestions) {
         setShowCommandSuggestions(false);
@@ -365,6 +389,7 @@ Available models: ${modelNames.join(", ")}`,
     selectedModelIndex,
     commandSuggestions,
     availableModels,
+    currentMode,
     agent,
   };
 }
