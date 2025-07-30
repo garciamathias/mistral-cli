@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useInput, useApp } from "ink";
 import { MistralAgent, ChatEntry } from "../agent/mistral-agent";
 import { ConfirmationService } from "../utils/confirmation-service";
@@ -6,12 +6,12 @@ import { ConfirmationService } from "../utils/confirmation-service";
 interface UseInputHandlerProps {
   agent: MistralAgent;
   chatHistory: ChatEntry[];
-  setChatHistory: React.Dispatch<React.SetStateAction<ChatEntry[]>>;
+  setChatHistory: (value: ChatEntry[] | ((prev: ChatEntry[]) => ChatEntry[])) => void;
   setIsProcessing: (processing: boolean) => void;
   setIsStreaming: (streaming: boolean) => void;
   setTokenCount: (count: number) => void;
   setProcessingTime: (time: number) => void;
-  processingStartTime: React.MutableRefObject<number>;
+  processingStartTime: { current: number };
   isProcessing: boolean;
   isStreaming: boolean;
   isConfirmationActive?: boolean;
@@ -29,7 +29,6 @@ interface ModelOption {
 
 export function useInputHandler({
   agent,
-  chatHistory,
   setChatHistory,
   setIsProcessing,
   setIsStreaming,
@@ -166,21 +165,18 @@ Available models: ${modelNames.join(", ")}`,
 
     try {
       setIsStreaming(true);
-      let streamingEntry: ChatEntry | null = null;
 
       for await (const chunk of agent.processUserMessageStream(userInput)) {
         switch (chunk.type) {
           case "content":
             if (chunk.content) {
-              // Display complete content at once instead of streaming
-              const newCompleteEntry = {
-                type: "assistant" as const,
+              // Add complete content directly to history
+              const newCompleteEntry: ChatEntry = {
+                type: "assistant",
                 content: chunk.content,
                 timestamp: new Date(),
-                isStreaming: false,
               };
               setChatHistory((prev) => [...prev, newCompleteEntry]);
-              streamingEntry = newCompleteEntry;
             }
             break;
 
@@ -192,24 +188,13 @@ Available models: ${modelNames.join(", ")}`,
 
           case "tool_calls":
             if (chunk.toolCalls) {
-              // Stop streaming for the current assistant message
-              setChatHistory((prev) =>
-                prev.map((entry) =>
-                  entry.isStreaming ? { ...entry, isStreaming: false, toolCalls: chunk.toolCalls } : entry
-                )
-              );
-              streamingEntry = null;
+              // Tool calls are now handled internally by the agent
+              // We just update the token count if needed
             }
             break;
 
           case "tool_result":
             if (chunk.toolCall && chunk.toolResult) {
-              setChatHistory((prev) =>
-                prev.map((entry) =>
-                  entry.isStreaming ? { ...entry, isStreaming: false } : entry
-                )
-              );
-
               const toolResultEntry: ChatEntry = {
                 type: "tool_result",
                 content: chunk.toolResult.success
@@ -220,18 +205,10 @@ Available models: ${modelNames.join(", ")}`,
                 toolResult: chunk.toolResult,
               };
               setChatHistory((prev) => [...prev, toolResultEntry]);
-              streamingEntry = null;
             }
             break;
 
           case "done":
-            if (streamingEntry) {
-              setChatHistory((prev) =>
-                prev.map((entry) =>
-                  entry.isStreaming ? { ...entry, isStreaming: false } : entry
-                )
-              );
-            }
             setIsStreaming(false);
             break;
         }

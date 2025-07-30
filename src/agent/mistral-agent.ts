@@ -1,4 +1,4 @@
-import { MistralClient, MistralMessage, MistralToolCall } from "../mistral/client";
+import { MistralClient, MistralToolCall } from "../mistral/client";
 import { MISTRAL_TOOLS } from "../mistral/tools";
 import { TextEditorTool, BashTool, TodoTool, ConfirmationTool } from "../tools";
 import { WebSearchTool } from "../tools/websearch";
@@ -15,7 +15,6 @@ export interface ChatEntry {
   toolCalls?: MistralToolCall[];
   toolCall?: MistralToolCall;
   toolResult?: { success: boolean; output?: string; error?: string };
-  isStreaming?: boolean;
 }
 
 export interface StreamingChunk {
@@ -241,35 +240,6 @@ Current working directory: ${process.cwd()}`,
     }
   }
 
-  private messageReducer(previous: any, item: any): any {
-    const reduce = (acc: any, delta: any) => {
-      acc = { ...acc };
-      for (const [key, value] of Object.entries(delta)) {
-        if (acc[key] === undefined || acc[key] === null) {
-          acc[key] = value;
-          // Clean up index properties from tool calls
-          if (Array.isArray(acc[key])) {
-            for (const arr of acc[key]) {
-              delete arr.index;
-            }
-          }
-        } else if (typeof acc[key] === "string" && typeof value === "string") {
-          (acc[key] as string) += value;
-        } else if (Array.isArray(acc[key]) && Array.isArray(value)) {
-          const accArray = acc[key] as any[];
-          for (let i = 0; i < value.length; i++) {
-            if (!accArray[i]) accArray[i] = {};
-            accArray[i] = reduce(accArray[i], value[i]);
-          }
-        } else if (typeof acc[key] === "object" && typeof value === "object") {
-          acc[key] = reduce(acc[key], value);
-        }
-      }
-      return acc;
-    };
-
-    return reduce(previous, item.choices[0]?.delta || {});
-  }
 
   async *processUserMessageStream(
     message: string
@@ -297,7 +267,6 @@ Current working directory: ${process.cwd()}`,
 
     const maxToolRounds = 30; // Prevent infinite loops
     let toolRounds = 0;
-    let totalOutputTokens = 0;
 
     try {
       // Agent loop - continue until no more tool calls or max rounds reached
@@ -312,98 +281,53 @@ Current working directory: ${process.cwd()}`,
           return;
         }
 
-        // Stream response and accumulate
-        const stream = this.mistralClient.chatStream(this.contextManager.getOptimizedMessages(), MISTRAL_TOOLS);
-        let accumulatedMessage: any = {};
-        let accumulatedContent = "";
-        let toolCallsYielded = false;
+        // Use direct chat API instead of streaming
+        const response = await this.mistralClient.chat(
+          this.contextManager.getOptimizedMessages(), 
+          MISTRAL_TOOLS
+        );
 
-        for await (const chunk of stream) {
-          // Check for cancellation in the streaming loop
-          if (this.abortController?.signal.aborted) {
-            yield {
-              type: "content",
-              content: "\n\n[Operation cancelled by user]",
-            };
-            yield { type: "done" };
-            return;
-          }
+        const assistantMessage = response.choices[0]?.message;
 
-          if (!chunk.choices?.[0]) continue;
-
-          // Accumulate the message using reducer
-          accumulatedMessage = this.messageReducer(accumulatedMessage, chunk);
-
-          // Check for tool calls - yield when we have complete tool calls with function names
-          if (!toolCallsYielded && accumulatedMessage.tool_calls?.length > 0) {
-            // Check if we have at least one complete tool call with a function name
-            const hasCompleteTool = accumulatedMessage.tool_calls.some(
-              (tc: any) => tc.function?.name
-            );
-            if (hasCompleteTool) {
-              yield {
-                type: "tool_calls",
-                toolCalls: accumulatedMessage.tool_calls,
-              };
-              toolCallsYielded = true;
-            }
-          }
-
-          // Accumulate content without streaming individual tokens
-          if (chunk.choices[0].delta?.content) {
-            accumulatedContent += chunk.choices[0].delta.content;
-
-            // Update token count in real-time
-            const currentOutputTokens =
-              this.tokenCounter.estimateStreamingTokens(accumulatedContent);
-            totalOutputTokens = currentOutputTokens;
-
-            // Emit token count update only (no content streaming)
-            yield {
-              type: "token_count",
-              tokenCount: inputTokens + totalOutputTokens,
-            };
-          }
+        if (!assistantMessage) {
+          throw new Error("No response from Mistral");
         }
 
-        // Yield complete content if there was any accumulated content
-        if (accumulatedContent && !toolCallsYielded) {
-          yield {
-            type: "content",
-            content: accumulatedContent,
-          };
-        }
-
-        // Add assistant entry to history
-        const assistantEntry: ChatEntry = {
-          type: "assistant",
-          content: accumulatedMessage.content || "Using tools to help you...",
-          timestamp: new Date(),
-          toolCalls: accumulatedMessage.tool_calls || undefined,
+        // Calculate total tokens after response
+        const outputTokens = this.tokenCounter.countMessageTokens([assistantMessage] as any);
+        yield {
+          type: "token_count",
+          tokenCount: inputTokens + outputTokens,
         };
-        this.chatHistory.push(assistantEntry);
 
-        // Add accumulated message to conversation
-        this.contextManager.addMessage({
-          role: "assistant",
-          content: accumulatedMessage.content || "",
-          tool_calls: accumulatedMessage.tool_calls,
-        } as any);
-
-        // Handle tool calls if present
-        if (accumulatedMessage.tool_calls?.length > 0) {
+        // Handle tool calls
+        if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
           toolRounds++;
 
-          // Only yield tool_calls if we haven't already yielded them during streaming
-          if (!toolCallsYielded) {
-            yield {
-              type: "tool_calls",
-              toolCalls: accumulatedMessage.tool_calls,
-            };
-          }
+          // Yield tool calls immediately
+          yield {
+            type: "tool_calls",
+            toolCalls: assistantMessage.tool_calls,
+          };
+
+          // Add assistant entry to history
+          const assistantEntry: ChatEntry = {
+            type: "assistant",
+            content: assistantMessage.content || "Using tools to help you...",
+            timestamp: new Date(),
+            toolCalls: assistantMessage.tool_calls,
+          };
+          this.chatHistory.push(assistantEntry);
+
+          // Add assistant message to conversation
+          this.contextManager.addMessage({
+            role: "assistant",
+            content: assistantMessage.content || "",
+            tool_calls: assistantMessage.tool_calls,
+          } as any);
 
           // Execute tools
-          for (const toolCall of accumulatedMessage.tool_calls) {
+          for (const toolCall of assistantMessage.tool_calls) {
             // Check for cancellation before executing each tool
             if (this.abortController?.signal.aborted) {
               yield {
@@ -445,8 +369,26 @@ Current working directory: ${process.cwd()}`,
 
           // Continue the loop to get the next response (which might have more tool calls)
         } else {
-          // No tool calls, we're done
-          break;
+          // No tool calls, yield final content and we're done
+          if (assistantMessage.content) {
+            yield {
+              type: "content",
+              content: assistantMessage.content,
+            };
+          }
+
+          // Add final assistant entry to history
+          const finalEntry: ChatEntry = {
+            type: "assistant",
+            content: assistantMessage.content || "I understand, but I don't have a specific response.",
+            timestamp: new Date(),
+          };
+          this.chatHistory.push(finalEntry);
+          this.contextManager.addMessage({
+            role: "assistant",
+            content: assistantMessage.content || "",
+          });
+          break; // Exit the loop
         }
       }
 

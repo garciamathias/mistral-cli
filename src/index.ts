@@ -71,8 +71,6 @@ program
       const apiKey = options.apiKey || mistralApiKey;
       const agent = apiKey ? new MistralAgent(apiKey) : undefined;
 
-      console.log("🤖 Starting Mistral CLI Conversational Assistant...\n");
-      
       if (linkupApiKey) {
         console.log("🔍 Web search enabled with LinkUp API\n");
       }
