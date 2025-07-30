@@ -33,7 +33,6 @@
     "fs-extra": "^11.1.1",
     "ink": "^3.2.0",
     "ink-gradient": "^2.0.0",
-    "ink-markdown": "^1.0.4",
     "mistral-tokenizer-js": "^1.0.0",
     "openai": "^5.10.1",
     "react": "^17.0.2",
