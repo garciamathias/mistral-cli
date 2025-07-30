@@ -57,8 +57,11 @@ export function LoadingSpinner({ isActive, processingTime, tokenCount }: Loading
 
   return (
     <Box marginTop={1}>
-      <Text color="cyan">
-        {spinnerFrames[spinnerFrame]} {loadingTexts[loadingTextIndex]}{" "}
+      <Text color="yellow">
+        {spinnerFrames[spinnerFrame]}{" "}
+      </Text>
+      <Text color="yellow">
+        {loadingTexts[loadingTextIndex]}{" "}
       </Text>
       <Text color="gray">
         ({processingTime}s · ↑ {tokenCount} tokens · esc to interrupt)
