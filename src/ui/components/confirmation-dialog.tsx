@@ -26,8 +26,7 @@ export default function ConfirmationDialog({
   const options = [
     "Yes",
     "Yes, and don't ask again this session",
-    "No",
-    "No, with feedback",
+    "No, ask Mistral to do it differently",
   ];
 
   useInput((input, key) => {
@@ -62,8 +61,6 @@ export default function ConfirmationDialog({
       } else if (selectedOption === 1) {
         onConfirm(true);
       } else if (selectedOption === 2) {
-        onReject("Operation cancelled by user");
-      } else {
         setFeedbackMode(true);
       }
       return;
