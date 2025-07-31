@@ -48,6 +48,9 @@ function ChatInterfaceWithAgent({ agent }: { agent: MistralAgent }) {
     commandSuggestions,
     availableModels,
     currentMode,
+    setMode,
+    lastUserMessage,
+    processUserMessage,
   } = useInputHandler({
     agent,
     chatHistory,
@@ -115,19 +118,35 @@ function ChatInterfaceWithAgent({ agent }: { agent: MistralAgent }) {
     processingStartTime.current = 0;
   };
 
-  const handlePlanProceed = (mode: 'auto-accept' | 'manual-approve') => {
+  const handlePlanProceed = async (mode: 'auto-accept' | 'manual-approve') => {
     setShowPlanDialog(false);
     setPlanContent(null);
     
-    // TODO: Switch to the selected mode and execute the plan
-    // For now, just continue with normal processing
-    setIsProcessing(false);
-    setIsStreaming(false);
+    // Switch to the selected mode
+    if (mode === 'auto-accept') {
+      setMode('auto-accept-on');
+      // Configure confirmation service to auto-accept all operations
+      confirmationService.setAutoAcceptAll(true);
+    } else {
+      setMode('auto-accept-off');
+      // Make sure auto-accept is disabled
+      confirmationService.resetSession();
+    }
+    
+    // Re-execute the plan by processing the last user message with the new mode
+    if (lastUserMessage) {
+      await processUserMessage(lastUserMessage);
+    }
   };
 
   const handleKeepPlanning = () => {
     setShowPlanDialog(false);
     setPlanContent(null);
+    
+    // Stay in plan mode - user can refine their request
+    setMode('plan');
+    
+    // Reset processing states so user can input new request
     setIsProcessing(false);
     setIsStreaming(false);
   };

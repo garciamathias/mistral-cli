@@ -133,4 +133,8 @@ export class ConfirmationService extends EventEmitter {
   getSessionFlags() {
     return { ...this.sessionFlags };
   }
+
+  setAutoAcceptAll(enabled: boolean): void {
+    this.sessionFlags.allOperations = enabled;
+  }
 }

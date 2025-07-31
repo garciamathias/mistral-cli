@@ -49,6 +49,7 @@ export function useInputHandler({
   const [showModelSelection, setShowModelSelection] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [currentMode, setCurrentMode] = useState<AppMode>('auto-accept-off');
+  const [lastUserMessage, setLastUserMessage] = useState<string>('');
   const { exit } = useApp();
 
   const commandSuggestions: CommandSuggestion[] = [
@@ -76,6 +77,10 @@ export function useInputHandler({
           return 'auto-accept-off';
       }
     });
+  };
+
+  const setMode = (newMode: AppMode) => {
+    setCurrentMode(newMode);
   };
 
   const handleDirectCommand = async (input: string): Promise<boolean> => {
@@ -173,6 +178,9 @@ Available models: ${modelNames.join(", ")}`,
   };
 
   const processUserMessage = async (userInput: string) => {
+    // Store the last user message for potential re-execution
+    setLastUserMessage(userInput);
+    
     const userEntry: ChatEntry = {
       type: "user",
       content: userInput,
@@ -398,6 +406,9 @@ Available models: ${modelNames.join(", ")}`,
     commandSuggestions,
     availableModels,
     currentMode,
+    setMode,
+    lastUserMessage,
+    processUserMessage,
     agent,
   };
 }
