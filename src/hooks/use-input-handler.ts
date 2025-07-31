@@ -15,6 +15,7 @@ interface UseInputHandlerProps {
   isProcessing: boolean;
   isStreaming: boolean;
   isConfirmationActive?: boolean;
+  onPlanGenerated?: (planContent: string) => void;
 }
 
 interface CommandSuggestion {
@@ -40,6 +41,7 @@ export function useInputHandler({
   isProcessing,
   isStreaming,
   isConfirmationActive = false,
+  onPlanGenerated,
 }: UseInputHandlerProps) {
   const [input, setInput] = useState("");
   const [showCommandSuggestions, setShowCommandSuggestions] = useState(false);
@@ -184,7 +186,7 @@ Available models: ${modelNames.join(", ")}`,
     try {
       setIsStreaming(true);
 
-      for await (const chunk of agent.processUserMessageStream(userInput)) {
+      for await (const chunk of agent.processUserMessageStream(userInput, currentMode)) {
         switch (chunk.type) {
           case "content":
             if (chunk.content) {
@@ -223,6 +225,12 @@ Available models: ${modelNames.join(", ")}`,
                 toolResult: chunk.toolResult,
               };
               setChatHistory((prev) => [...prev, toolResultEntry]);
+            }
+            break;
+
+          case "plan":
+            if (chunk.planContent && onPlanGenerated) {
+              onPlanGenerated(chunk.planContent);
             }
             break;
 

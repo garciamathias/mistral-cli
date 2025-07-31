@@ -8,6 +8,7 @@ import { ModelSelection } from "./model-selection";
 import { ChatHistory } from "./chat-history";
 import { ChatInput } from "./chat-input";
 import ConfirmationDialog from "./confirmation-dialog";
+import PlanDialog from "./plan-dialog";
 import { ConfirmationService, ConfirmationOptions } from "../../utils/confirmation-service";
 import ApiKeyInput from "./api-key-input";
 import AsciiLogo from "./ascii-logo";
@@ -24,10 +25,19 @@ function ChatInterfaceWithAgent({ agent }: { agent: MistralAgent }) {
   const [tokenCount, setTokenCount] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
   const [confirmationOptions, setConfirmationOptions] = useState<ConfirmationOptions | null>(null);
+  const [planContent, setPlanContent] = useState<string | null>(null); 
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
   const scrollRef = useRef<any>();
   const processingStartTime = useRef<number>(0);
   
   const confirmationService = ConfirmationService.getInstance();
+
+  const handlePlanGenerated = (planContent: string) => {
+    setPlanContent(planContent);
+    setShowPlanDialog(true);
+    setIsProcessing(false);
+    setIsStreaming(false);
+  };
 
   const {
     input,
@@ -50,6 +60,7 @@ function ChatInterfaceWithAgent({ agent }: { agent: MistralAgent }) {
     isProcessing,
     isStreaming,
     isConfirmationActive: !!confirmationOptions,
+    onPlanGenerated: handlePlanGenerated,
   });
 
   useEffect(() => {
@@ -104,6 +115,23 @@ function ChatInterfaceWithAgent({ agent }: { agent: MistralAgent }) {
     processingStartTime.current = 0;
   };
 
+  const handlePlanProceed = (mode: 'auto-accept' | 'manual-approve') => {
+    setShowPlanDialog(false);
+    setPlanContent(null);
+    
+    // TODO: Switch to the selected mode and execute the plan
+    // For now, just continue with normal processing
+    setIsProcessing(false);
+    setIsStreaming(false);
+  };
+
+  const handleKeepPlanning = () => {
+    setShowPlanDialog(false);
+    setPlanContent(null);
+    setIsProcessing(false);
+    setIsStreaming(false);
+  };
+
   return (
     <Box flexDirection="column" padding={1}>
       <AsciiLogo />
@@ -136,8 +164,17 @@ function ChatInterfaceWithAgent({ agent }: { agent: MistralAgent }) {
         />
       )}
 
+      {/* Show plan dialog if a plan was generated */}
+      {showPlanDialog && planContent && (
+        <PlanDialog
+          planContent={planContent}
+          onProceed={handlePlanProceed}
+          onKeepPlanning={handleKeepPlanning}
+        />
+      )}
 
-      {!confirmationOptions && (
+
+      {!confirmationOptions && !showPlanDialog && (
         <>
           <LoadingSpinner
             isActive={isProcessing || isStreaming}

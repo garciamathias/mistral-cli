@@ -18,12 +18,13 @@ export interface ChatEntry {
 }
 
 export interface StreamingChunk {
-  type: "content" | "tool_calls" | "tool_result" | "done" | "token_count";
+  type: "content" | "tool_calls" | "tool_result" | "done" | "token_count" | "plan";
   content?: string;
   toolCalls?: MistralToolCall[];
   toolCall?: MistralToolCall;
   toolResult?: ToolResult;
   tokenCount?: number;
+  planContent?: string;
 }
 
 export class MistralAgent extends EventEmitter {
@@ -242,7 +243,8 @@ Current working directory: ${process.cwd()}`,
 
 
   async *processUserMessageStream(
-    message: string
+    message: string,
+    currentMode?: 'auto-accept-off' | 'auto-accept-on' | 'plan'
   ): AsyncGenerator<StreamingChunk, void, unknown> {
     // Create new abort controller for this request
     this.abortController = new AbortController();
@@ -254,7 +256,52 @@ Current working directory: ${process.cwd()}`,
       timestamp: new Date(),
     };
     this.chatHistory.push(userEntry);
-    this.contextManager.addMessage({ role: "user", content: message });
+    
+    // Add mode-specific instructions if in plan mode
+    let contextualMessage = message;
+    if (currentMode === 'plan') {
+      contextualMessage = `PLAN MODE ACTIVE - READ-ONLY ANALYSIS REQUIRED
+
+You are in PLAN MODE. Your role is to analyze the codebase and create a detailed action plan WITHOUT executing any modifications.
+
+RESTRICTIONS IN PLAN MODE:
+- DO NOT use create_file, str_replace_editor, or any modification tools
+- ONLY use view_file, bash (for read-only operations like ls, find, grep, cat), and analysis tools
+- Your job is to PLAN, not to execute
+- DO NOT make any changes to files or create new files
+
+REQUIRED PROCESS:
+1. First, explore the codebase using view_file and bash (ls, find, grep, etc.)
+2. Understand the current state of relevant files
+3. Create a structured plan with specific details
+
+FORMAT YOUR PLAN like this:
+# Plan for [task]
+
+## Objective
+[Clear description of what needs to be accomplished]
+
+## Codebase Analysis
+[What you found in the current code - current state, existing patterns, etc.]
+
+## Files to Modify
+- file1.ts: [current state and what specific changes are needed]
+- file2.tsx: [current state and what specific changes are needed]
+
+## Implementation Steps
+1. [Step 1 with specific details, line numbers if applicable]
+2. [Step 2 with specific details, line numbers if applicable]
+3. [Continue with all necessary steps]
+
+## Expected Outcome
+[What the result should be after implementation]
+
+IMPORTANT: Do not execute any modifications. Only analyze and plan.
+
+User request: ${message}`;
+    }
+    
+    this.contextManager.addMessage({ role: "user", content: contextualMessage });
 
     // Calculate input tokens
     const inputTokens = this.tokenCounter.countMessageTokens(
@@ -371,10 +418,18 @@ Current working directory: ${process.cwd()}`,
         } else {
           // No tool calls, yield final content and we're done
           if (assistantMessage.content) {
-            yield {
-              type: "content",
-              content: assistantMessage.content,
-            };
+            // Check if we're in plan mode and this looks like a plan
+            if (currentMode === 'plan' && this.isPlanContent(assistantMessage.content)) {
+              yield {
+                type: "plan",
+                planContent: assistantMessage.content,
+              };
+            } else {
+              yield {
+                type: "content",
+                content: assistantMessage.content,
+              };
+            }
           }
 
           // Add final assistant entry to history
@@ -427,6 +482,34 @@ Current working directory: ${process.cwd()}`,
       // Clean up abort controller
       this.abortController = null;
     }
+  }
+
+  private isPlanContent(content: string): boolean {
+    // Check for the specific plan format we requested
+    const hasPlanTitle = /^#\s*Plan\s+for/mi.test(content);
+    const hasObjectiveSection = /^##\s*Objective/mi.test(content);
+    const hasAnalysisSection = /^##\s*Codebase\s*Analysis/mi.test(content);
+    const hasFilesSection = /^##\s*Files\s+to\s+Modify/mi.test(content);
+    const hasStepsSection = /^##\s*Implementation\s+Steps/mi.test(content);
+    const hasOutcomeSection = /^##\s*Expected\s+Outcome/mi.test(content);
+    
+    // Must have at least the main plan structure sections
+    const hasMainStructure = hasPlanTitle && hasObjectiveSection && (hasFilesSection || hasStepsSection);
+    
+    // Check for plan-specific keywords
+    const planKeywords = [
+      'plan', 'objective', 'analysis', 'modify', 'implement', 
+      'steps', 'files to modify', 'expected outcome', 'codebase'
+    ];
+    
+    const lowerContent = content.toLowerCase();
+    const keywordCount = planKeywords.filter(keyword => lowerContent.includes(keyword)).length;
+    
+    // Check for structured list format (numbered steps, bullet points)
+    const hasListStructure = /^\d+\.\s|^[-*+]\s/m.test(content);
+    
+    // Must have structured format AND multiple plan keywords OR explicit plan sections
+    return hasMainStructure || (keywordCount >= 3 && hasListStructure);
   }
 
   private async executeTool(toolCall: MistralToolCall): Promise<ToolResult> {
