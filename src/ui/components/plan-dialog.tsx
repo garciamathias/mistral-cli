@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
+import { MarkdownRenderer } from "../utils/markdown-renderer";
 
 interface PlanDialogProps {
   planContent: string;
@@ -48,9 +49,6 @@ export default function PlanDialog({
     }
   });
 
-  // Split plan content into lines for better formatting
-  const planLines = planContent.split('\n');
-
   return (
     <Box flexDirection="column" padding={1}>
       {/* Main container with double border effect */}
@@ -79,11 +77,7 @@ export default function PlanDialog({
             flexDirection="column"
             width="100%"
           >
-            {planLines.map((line, index) => (
-              <Text key={index} color="white">
-                {line || ' '}
-              </Text>
-            ))}
+            <MarkdownRenderer content={planContent} />
           </Box>
         </Box>
 
