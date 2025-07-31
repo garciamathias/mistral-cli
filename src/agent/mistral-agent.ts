@@ -7,6 +7,7 @@ import { EventEmitter } from "events";
 import { createMistralTokenCounter, MistralTokenCounter } from "../utils/mistral-token-counter";
 import { loadCustomInstructions } from "../utils/custom-instructions";
 import { ContextManager } from "../utils/context-manager";
+import { PromptManager, AppMode } from "../prompts/prompt-manager";
 
 export interface ChatEntry {
   type: "user" | "assistant" | "tool_result";
@@ -37,6 +38,8 @@ export class MistralAgent extends EventEmitter {
   private chatHistory: ChatEntry[] = [];
   private tokenCounter: MistralTokenCounter;
   private contextManager: ContextManager;
+  private promptManager: PromptManager;
+  private currentMode: AppMode = 'auto-accept-off';
   private abortController: AbortController | null = null;
 
   constructor(apiKey: string) {
@@ -49,70 +52,16 @@ export class MistralAgent extends EventEmitter {
     this.webSearchTool = new WebSearchTool();
     this.tokenCounter = createMistralTokenCounter();
     this.contextManager = new ContextManager(this.tokenCounter);
+    this.promptManager = new PromptManager(process.cwd());
 
     // Load custom instructions
     const customInstructions = loadCustomInstructions();
-    const customInstructionsSection = customInstructions
-      ? `\n\nCUSTOM INSTRUCTIONS:\n${customInstructions}\n\nThe above custom instructions should be followed alongside the standard instructions below.`
-      : "";
-
-    // Initialize with system message
+    
+    // Initialize with default system message (auto-accept-off mode)
+    const defaultSystemMessage = this.promptManager.getSystemMessage('auto-accept-off', customInstructions);
     this.contextManager.addMessage({
       role: "system",
-      content: `You are Mistral CLI, an AI assistant powered by Devstral Medium that helps with file editing, coding tasks, and system operations.${customInstructionsSection}
-
-You have access to these tools:
-- view_file: View file contents or directory listings
-- create_file: Create new files with content (ONLY use this for files that don't exist yet)
-- str_replace_editor: Replace text in existing files (ALWAYS use this to edit or update existing files)
-- bash: Execute bash commands (use for searching, file discovery, navigation, and system operations)
-- create_todo_list: Create a visual todo list for planning and tracking tasks
-- update_todo_list: Update existing todos in your todo list
-- web_search: Search the web for information using a search query
-
-IMPORTANT TOOL USAGE RULES:
-- NEVER use create_file on files that already exist - this will overwrite them completely
-- ALWAYS use str_replace_editor to modify existing files, even for small changes
-- Before editing a file, use view_file to see its current contents
-- Use create_file ONLY when creating entirely new files that don't exist
-
-SEARCHING AND EXPLORATION:
-- Use bash with commands like 'find', 'grep', 'rg' (ripgrep), 'ls', etc. for searching files and content
-- Examples: 'find . -name "*.js"', 'grep -r "function" src/', 'rg "import.*react"'
-- Use bash for directory navigation, file discovery, and content searching
-- view_file is best for reading specific files you already know exist
-
-When a user asks you to edit, update, modify, or change an existing file:
-1. First use view_file to see the current contents
-2. Then use str_replace_editor to make the specific changes
-3. Never use create_file for existing files
-
-When a user asks you to create a new file that doesn't exist:
-1. Use create_file with the full content
-
-TASK PLANNING WITH TODO LISTS:
-- For complex requests with multiple steps, ALWAYS create a todo list first to plan your approach
-- Use create_todo_list to break down tasks into manageable items with priorities
-- Mark tasks as 'in_progress' when you start working on them (only one at a time)
-- Mark tasks as 'completed' immediately when finished
-- Use update_todo_list to track your progress throughout the task
-- Todo lists provide visual feedback with colors: ✅ Green (completed), 🔄 Cyan (in progress), ⏳ Yellow (pending)
-- Always create todos with priorities: 'high' (🔴), 'medium' (🟡), 'low' (🟢)
-
-USER CONFIRMATION SYSTEM:
-File operations (create_file, str_replace_editor) and bash commands will automatically request user confirmation before execution. The confirmation system will show users the actual content or command before they decide. Users can choose to approve individual operations or approve all operations of that type for the session.
-
-If a user rejects an operation, the tool will return an error and you should not proceed with that specific operation.
-
-Be helpful, direct, and efficient. Always explain what you're doing and show the results.
-
-IMPORTANT RESPONSE GUIDELINES:
-- After using tools, do NOT respond with pleasantries like "Thanks for..." or "Great!"
-- Only provide necessary explanations or next steps if relevant to the task
-- Keep responses concise and focused on the actual work being done
-- If a tool execution completes the user's request, you can remain silent or give a brief confirmation
-
-Current working directory: ${process.cwd()}`,
+      content: defaultSystemMessage,
     });
   }
 
@@ -244,10 +193,13 @@ Current working directory: ${process.cwd()}`,
 
   async *processUserMessageStream(
     message: string,
-    currentMode?: 'auto-accept-off' | 'auto-accept-on' | 'plan'
+    currentMode: AppMode = 'auto-accept-off'
   ): AsyncGenerator<StreamingChunk, void, unknown> {
     // Create new abort controller for this request
     this.abortController = new AbortController();
+    
+    // Set the current mode for this session
+    this.currentMode = currentMode;
     
     // Add user message to conversation
     const userEntry: ChatEntry = {
@@ -257,48 +209,40 @@ Current working directory: ${process.cwd()}`,
     };
     this.chatHistory.push(userEntry);
     
+    // Update context manager with mode-specific system message
+    const customInstructions = loadCustomInstructions();
+    const systemMessage = this.promptManager.getSystemMessage(currentMode, customInstructions);
+    
+    // Clear and rebuild context with the appropriate system message for this mode
+    this.contextManager.clear();
+    this.contextManager.addMessage({
+      role: "system",
+      content: systemMessage,
+    });
+    
+    // Add chat history back to context
+    for (const entry of this.chatHistory.slice(0, -1)) { // Exclude the current user message
+      if (entry.type === "user") {
+        this.contextManager.addMessage({ role: "user", content: entry.content });
+      } else if (entry.type === "assistant") {
+        this.contextManager.addMessage({ 
+          role: "assistant", 
+          content: entry.content,
+          tool_calls: entry.toolCalls 
+        } as any);
+      } else if (entry.type === "tool_result" && entry.toolCall) {
+        this.contextManager.addMessage({
+          role: "tool",
+          content: entry.content,
+          tool_call_id: entry.toolCall.id,
+        });
+      }
+    }
+    
     // Add mode-specific instructions if in plan mode
     let contextualMessage = message;
     if (currentMode === 'plan') {
-      contextualMessage = `PLAN MODE ACTIVE - READ-ONLY ANALYSIS REQUIRED
-
-You are in PLAN MODE. Your role is to analyze the codebase and create a detailed action plan WITHOUT executing any modifications.
-
-RESTRICTIONS IN PLAN MODE:
-- DO NOT use create_file, str_replace_editor, or any modification tools
-- ONLY use view_file, bash (for read-only operations like ls, find, grep, cat), and analysis tools
-- Your job is to PLAN, not to execute
-- DO NOT make any changes to files or create new files
-
-REQUIRED PROCESS:
-1. First, explore the codebase using view_file and bash (ls, find, grep, etc.)
-2. Understand the current state of relevant files
-3. Create a structured plan with specific details
-
-FORMAT YOUR PLAN like this:
-# Plan for [task]
-
-## Objective
-[Clear description of what needs to be accomplished]
-
-## Codebase Analysis
-[What you found in the current code - current state, existing patterns, etc.]
-
-## Files to Modify
-- file1.ts: [current state and what specific changes are needed]
-- file2.tsx: [current state and what specific changes are needed]
-
-## Implementation Steps
-1. [Step 1 with specific details, line numbers if applicable]
-2. [Step 2 with specific details, line numbers if applicable]
-3. [Continue with all necessary steps]
-
-## Expected Outcome
-[What the result should be after implementation]
-
-IMPORTANT: Do not execute any modifications. Only analyze and plan.
-
-User request: ${message}`;
+      contextualMessage = this.promptManager.getPlanModeContextualMessage(message);
     }
     
     this.contextManager.addMessage({ role: "user", content: contextualMessage });
@@ -525,9 +469,21 @@ User request: ${message}`;
           return await this.textEditor.view(args.path, range);
 
         case "create_file":
+          if (this.currentMode === 'plan') {
+            return {
+              success: false,
+              error: "File creation is not allowed in plan mode. Use view_file to analyze existing files instead.",
+            };
+          }
           return await this.textEditor.create(args.path, args.content);
 
         case "str_replace_editor":
+          if (this.currentMode === 'plan') {
+            return {
+              success: false,
+              error: "File editing is not allowed in plan mode. Use view_file to analyze existing files instead.",
+            };
+          }
           return await this.textEditor.strReplace(
             args.path,
             args.old_str,
@@ -538,9 +494,21 @@ User request: ${message}`;
           return await this.bash.execute(args.command);
 
         case "create_todo_list":
+          if (this.currentMode === 'plan') {
+            return {
+              success: false,
+              error: "TODO operations are not allowed in plan mode. Focus on analysis and planning only.",
+            };
+          }
           return await this.todoTool.createTodoList(args.todos);
 
         case "update_todo_list":
+          if (this.currentMode === 'plan') {
+            return {
+              success: false,
+              error: "TODO operations are not allowed in plan mode. Focus on analysis and planning only.",
+            };
+          }
           return await this.todoTool.updateTodoList(args.updates);
 
         case "web_search":
