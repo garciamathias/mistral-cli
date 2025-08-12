@@ -66,12 +66,7 @@ export function ChatInput({
           {getModeText(currentMode)}
         </Text>
         {modelName && contextPercentageLeft !== undefined && (
-          <Text 
-            color={getContextColor(contextPercentageLeft)} 
-            dimColor
-          >
-            {modelName} ({contextPercentageLeft}% context left)
-          </Text>
+          <Text color="yellow">{modelName} ({contextPercentageLeft}% context left)</Text>
         )}
       </Box>
     </Box>

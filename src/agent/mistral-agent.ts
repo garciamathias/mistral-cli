@@ -10,6 +10,7 @@ import { ContextManager } from "../utils/context-manager";
 import { PromptManager, AppMode } from "../prompts/prompt-manager";
 
 export interface ChatEntry {
+  id: string;
   type: "user" | "assistant" | "tool_result";
   content: string;
   timestamp: Date;
@@ -41,6 +42,7 @@ export class MistralAgent extends EventEmitter {
   private promptManager: PromptManager;
   private currentMode: AppMode = 'auto-accept-off';
   private abortController: AbortController | null = null;
+  private messageCounter: number = 0;
 
   constructor(apiKey: string) {
     super();
@@ -68,6 +70,7 @@ export class MistralAgent extends EventEmitter {
   async processUserMessage(message: string): Promise<ChatEntry[]> {
     // Add user message to conversation
     const userEntry: ChatEntry = {
+      id: `msg-${++this.messageCounter}`,
       type: "user",
       content: message,
       timestamp: new Date(),
@@ -102,6 +105,7 @@ export class MistralAgent extends EventEmitter {
 
           // Add assistant message with tool calls
           const assistantEntry: ChatEntry = {
+            id: `msg-${++this.messageCounter}`,
             type: "assistant",
             content: assistantMessage.content || "Using tools to help you...",
             timestamp: new Date(),
@@ -122,6 +126,7 @@ export class MistralAgent extends EventEmitter {
             const result = await this.executeTool(toolCall);
 
             const toolResultEntry: ChatEntry = {
+              id: `msg-${++this.messageCounter}`,
               type: "tool_result",
               content: result.success
                 ? result.output || "Success"
@@ -151,6 +156,7 @@ export class MistralAgent extends EventEmitter {
         } else {
           // No more tool calls, add final response
           const finalEntry: ChatEntry = {
+            id: `msg-${++this.messageCounter}`,
             type: "assistant",
             content:
               assistantMessage.content ||
@@ -169,6 +175,7 @@ export class MistralAgent extends EventEmitter {
 
       if (toolRounds >= maxToolRounds) {
         const warningEntry: ChatEntry = {
+          id: `msg-${++this.messageCounter}`,
           type: "assistant",
           content:
             "Maximum tool execution rounds reached. Stopping to prevent infinite loops.",
@@ -181,6 +188,7 @@ export class MistralAgent extends EventEmitter {
       return newEntries;
     } catch (error: any) {
       const errorEntry: ChatEntry = {
+        id: `msg-${++this.messageCounter}`,
         type: "assistant",
         content: `Sorry, I encountered an error: ${error.message}`,
         timestamp: new Date(),
@@ -203,6 +211,7 @@ export class MistralAgent extends EventEmitter {
     
     // Add user message to conversation
     const userEntry: ChatEntry = {
+      id: `msg-${++this.messageCounter}`,
       type: "user",
       content: message,
       timestamp: new Date(),
@@ -303,6 +312,7 @@ export class MistralAgent extends EventEmitter {
 
           // Add assistant entry to history
           const assistantEntry: ChatEntry = {
+            id: `msg-${++this.messageCounter}`,
             type: "assistant",
             content: assistantMessage.content || "Using tools to help you...",
             timestamp: new Date(),
@@ -332,6 +342,7 @@ export class MistralAgent extends EventEmitter {
             const result = await this.executeTool(toolCall);
 
             const toolResultEntry: ChatEntry = {
+              id: `msg-${++this.messageCounter}`,
               type: "tool_result",
               content: result.success
                 ? result.output || "Success"
@@ -378,6 +389,7 @@ export class MistralAgent extends EventEmitter {
 
           // Add final assistant entry to history
           const finalEntry: ChatEntry = {
+            id: `msg-${++this.messageCounter}`,
             type: "assistant",
             content: assistantMessage.content || "I understand, but I don't have a specific response.",
             timestamp: new Date(),
@@ -412,6 +424,7 @@ export class MistralAgent extends EventEmitter {
       }
 
       const errorEntry: ChatEntry = {
+        id: `msg-${++this.messageCounter}`,
         type: "assistant",
         content: `Sorry, I encountered an error: ${error.message}`,
         timestamp: new Date(),

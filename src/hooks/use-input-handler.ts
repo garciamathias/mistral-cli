@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useInput, useApp } from "ink";
 import { MistralAgent, ChatEntry } from "../agent/mistral-agent";
 import { ConfirmationService } from "../utils/confirmation-service";
@@ -51,6 +51,8 @@ export function useInputHandler({
   const [currentMode, setCurrentMode] = useState<AppMode>('auto-accept-off');
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
   const { exit } = useApp();
+  const idSeq = useRef(0);
+  const nextId = (suffix?: string) => `local-${++idSeq.current}-${Date.now()}${suffix ? '-' + suffix : ''}`;
 
   const commandSuggestions: CommandSuggestion[] = [
     { command: "/help", description: "Show help information" },
@@ -107,6 +109,7 @@ export function useInputHandler({
 
     if (trimmedInput === "/help") {
       const helpEntry: ChatEntry = {
+        id: nextId('help'),
         type: "assistant",
         content: `Mistral CLI Help:
 
@@ -151,6 +154,7 @@ Examples:
       if (modelNames.includes(modelArg)) {
         agent.setModel(modelArg);
         const confirmEntry: ChatEntry = {
+          id: nextId('model'),
           type: "assistant",
           content: `✓ Switched to model: ${modelArg}`,
           timestamp: new Date(),
@@ -158,6 +162,7 @@ Examples:
         setChatHistory((prev) => [...prev, confirmEntry]);
       } else {
         const errorEntry: ChatEntry = {
+          id: nextId('err'),
           type: "assistant",
           content: `Invalid model: ${modelArg}
 
@@ -182,6 +187,7 @@ Available models: ${modelNames.join(", ")}`,
     setLastUserMessage(userInput);
     
     const userEntry: ChatEntry = {
+      id: nextId('user'),
       type: "user",
       content: userInput,
       timestamp: new Date(),
@@ -200,6 +206,7 @@ Available models: ${modelNames.join(", ")}`,
             if (chunk.content) {
               // Add complete content directly to history
               const newCompleteEntry: ChatEntry = {
+                id: nextId('assistant'),
                 type: "assistant",
                 content: chunk.content,
                 timestamp: new Date(),
@@ -224,6 +231,7 @@ Available models: ${modelNames.join(", ")}`,
           case "tool_result":
             if (chunk.toolCall && chunk.toolResult) {
               const toolResultEntry: ChatEntry = {
+                id: nextId('tool'),
                 type: "tool_result",
                 content: chunk.toolResult.success
                   ? chunk.toolResult.output || "Success"
@@ -249,6 +257,7 @@ Available models: ${modelNames.join(", ")}`,
       }
     } catch (error: any) {
       const errorEntry: ChatEntry = {
+        id: nextId('catch'),
         type: "assistant",
         content: `Error: ${error.message}`,
         timestamp: new Date(),
@@ -335,6 +344,7 @@ Available models: ${modelNames.join(", ")}`,
         const selectedModel = availableModels[selectedModelIndex];
         agent.setModel(selectedModel.model);
         const confirmEntry: ChatEntry = {
+          id: `local-${Date.now()}-model`,
           type: "assistant",
           content: `✓ Switched to model: ${selectedModel.model}`,
           timestamp: new Date(),

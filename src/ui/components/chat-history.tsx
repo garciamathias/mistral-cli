@@ -1,15 +1,23 @@
-import React from "react";
+import React, { useMemo, useRef } from "react";
 import { Box, Text } from "ink";
 import { ChatEntry } from "../../agent/mistral-agent";
 import { DiffRenderer } from "./diff-renderer";
 import { MarkdownRenderer } from "../utils/markdown-renderer";
 import { truncateOutput, formatTruncatedMessage } from "../utils/output-truncator";
+import { AppendOnlyLog } from "./append-only-log";
 
 interface ChatHistoryProps {
   entries: ChatEntry[];
 }
 
 export function ChatHistory({ entries }: ChatHistoryProps) {
+  // Reset signal when history is cleared
+  const resetRef = useRef(0);
+  const prevLen = useRef(entries.length);
+  if (prevLen.current > 0 && entries.length === 0) {
+    resetRef.current++;
+  }
+  prevLen.current = entries.length;
   const renderDiff = (diffContent: string, filename?: string) => {
     return (
       <DiffRenderer
@@ -62,7 +70,7 @@ export function ChatHistory({ entries }: ChatHistoryProps) {
     switch (entry.type) {
       case "user":
         return (
-          <Box key={index} flexDirection="column" marginTop={1}>
+          <Box key={entry.id || index} flexDirection="column" marginTop={1}>
             <Box>
               <Text color="gray">
                 {">"} {entry.content}
@@ -73,7 +81,7 @@ export function ChatHistory({ entries }: ChatHistoryProps) {
 
       case "assistant":
         return (
-          <Box key={index} flexDirection="column" marginTop={1}>
+          <Box key={entry.id || index} flexDirection="column" marginTop={1}>
             <Box flexDirection="row" alignItems="flex-start">
               <Text color="white">⏺ </Text>
               <Box flexDirection="column" flexGrow={1}>
@@ -139,7 +147,7 @@ export function ChatHistory({ entries }: ChatHistoryProps) {
         const isBashCommand = toolName === "bash";
 
         return (
-          <Box key={index} flexDirection="column" marginTop={1}>
+          <Box key={entry.id || index} flexDirection="column" marginTop={1}>
             <Box>
               <Text color="magenta">⏺</Text>
               <Text color="white">
@@ -190,7 +198,18 @@ export function ChatHistory({ entries }: ChatHistoryProps) {
     }
   };
 
+  // Append-only rendering; we still keep a safety window to bound memory
+  const windowedEntries = useMemo(() => entries.slice(-500), [entries]);
   return (
-    <Box flexDirection="column">{entries.slice(-20).map(renderChatEntry)}</Box>
+    <Box flexDirection="column">
+      <AppendOnlyLog
+        entries={windowedEntries}
+        resetSignal={resetRef.current}
+        getItemKey={(e) => String((e as ChatEntry).id)}
+        renderItem={(e, idx) => (
+          <Box flexDirection="column">{renderChatEntry(e as ChatEntry, idx)}</Box>
+        )}
+      />
+    </Box>
   );
 }
